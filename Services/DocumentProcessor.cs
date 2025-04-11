@@ -6,6 +6,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp;
 using System.Drawing;
 using System.Buffers.Text;
+using SharpToken;
 
 namespace SaulutionIA.Services
 {
@@ -81,7 +82,7 @@ namespace SaulutionIA.Services
                 role = "user",
                 content = new object[]
                 {
-                    new { type = "text", text = "Que tipo de documento é esse? (ex: CNH, RG, título de eleitor, certidão, contrato, etc.) Responda apenas com o tipo do documento." },
+                    new { type = "text", text = "Que tipo de documento é esse? (ex: CNH, RG, título de eleitor, certidão, contrato, etc.). e extrair o máximo de informações do documento. Me retornar um json com o nome e o tipo. Exemplo: {Nome: Value, Tipo: Value}" },
                     new { type = "image_url", image_url = new { url = base64 } }
                 }
             }
@@ -89,7 +90,10 @@ namespace SaulutionIA.Services
                 max_tokens = 100
             };
 
+
             var json = JsonSerializer.Serialize(payload);
+            int tokens = ContarTokensComJson(json, "gpt-4-turbo"); // Contar tokens para o payload (opcional, mas útil para debug)
+
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             var response = await client.PostAsync("https://api.openai.com/v1/chat/completions", content);
@@ -149,6 +153,12 @@ namespace SaulutionIA.Services
             }
         }
 
+        private static int ContarTokens(string texto, string modelo = "gpt-4-turbo")
+        {
+            var encoding = GptEncoding.GetEncodingForModel(modelo); // ou "cl100k_base" direto
+            return encoding.Encode(texto).Count;
+        }
+
 
         private static byte[] BitmapToBytes(Bitmap bitmap)
         {
@@ -156,6 +166,51 @@ namespace SaulutionIA.Services
             bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
             return stream.ToArray();
         }
+
+        public static int ContarTokensComJson(string jsonPayload, string modelo = "gpt-4-turbo")
+        {
+            var encoding = GptEncoding.GetEncodingForModel(modelo);
+            int totalTokens = 0;
+
+            using var doc = JsonDocument.Parse(jsonPayload);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("messages", out var messages))
+            {
+                foreach (var message in messages.EnumerateArray())
+                {
+                    totalTokens += 3; // base por mensagem
+
+                    if (message.TryGetProperty("role", out var role))
+                        totalTokens += encoding.Encode(role.GetString()).Count;
+
+                    if (message.TryGetProperty("content", out var contentArray) && contentArray.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in contentArray.EnumerateArray())
+                        {
+                            if (item.TryGetProperty("type", out var type))
+                            {
+                                if (type.GetString() == "text" && item.TryGetProperty("text", out var text))
+                                {
+                                    totalTokens += encoding.Encode(text.GetString()).Count;
+                                }
+                                else if (type.GetString() == "image_url" &&
+                                         item.TryGetProperty("image_url", out var imageUrl) &&
+                                         imageUrl.TryGetProperty("url", out var url))
+                                {
+                                    totalTokens += encoding.Encode(url.GetString()).Count;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            totalTokens += 3; // fim da mensagem
+
+            return totalTokens;
+        }
+
 
     }
 }
