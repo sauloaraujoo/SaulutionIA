@@ -13,9 +13,9 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "TecfyIA API",
+        Title = "SaulutionIA API",
         Version = "v1",
-        Description = "API para identificar tipos de documentos usando OpenAI"
+        Description = "API para identificar tipos de documentos usando OpenAI e DeepSeek"
     });
 
     options.OperationFilter<AddFileUploadOperationFilter>();

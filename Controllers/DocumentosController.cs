@@ -15,7 +15,7 @@ namespace SaulutionIA.Controllers
             _processor = processor;
         }
 
-        [HttpPost("analisar")]
+        [HttpPost("analisar-chatpt")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> AnalisarDocumento([FromForm] AnalisarDocumentoRequest request)
         {
@@ -28,15 +28,55 @@ namespace SaulutionIA.Controllers
             {
                 var input = await _processor.ExtrairTextoOuImagemBase64(documento);  
                 var resultado = await _processor.IdentificarTipoDocumento(input);
-                //var resultado = await _processor.AnalisarComDepSeek(documento);
 
-
-                return Ok(new { tipo = resultado });
+                var jsonLimpo = JsonResponseHelper.ProcessarRespostaJson(resultado);
+                return Ok(jsonLimpo);
             }
             catch (Exception ex)
             {
                 return Problem($"Erro ao processar documento: {ex.Message}");
             }
         }
+
+        [HttpPost("analisar-deepseek")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> AnalisarComDeepSeek([FromForm] AnalisarDocumentoRequest request)
+        {
+            var documento = request.Documento;
+
+            if (documento == null || documento.Length == 0)
+                return BadRequest("Arquivo não enviado.");
+
+            try
+            {
+                var resultado = await _processor.AnalisarComDepSeek(documento);
+                var jsonLimpo = JsonResponseHelper.ProcessarRespostaJson(resultado);
+                return Ok(jsonLimpo);
+            }
+            catch (Exception ex)
+            {
+                return Problem($"Erro ao processar documento com DeepSeek: {ex.Message}");
+            }
+        }
+
+        //[HttpPost("analisar-completo")]
+        //[Consumes("multipart/form-data")]
+        //public async Task<IActionResult> AnalisarDocumentoCompleto([FromForm] AnalisarDocumentoRequest request)
+        //{
+        //    var documento = request.Documento;
+
+        //    if (documento == null || documento.Length == 0)
+        //        return BadRequest("Arquivo não enviado.");
+
+        //    try
+        //    {
+        //        var resultado = await _processor.AnalisarDocumentoCompleto(documento);
+        //        return Ok(new { analise_completa = resultado });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return Problem($"Erro ao processar documento completo: {ex.Message}");
+        //    }
+        //}
     }
 }
